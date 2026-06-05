@@ -65,6 +65,16 @@ export default function Profil() {
     setDuzenleModal(null)
   }
 
+  const kayitSil = async (gercekIndex) => {
+    if (!window.confirm('Bu kaydı silmek istediğinize emin misiniz?')) return
+    try {
+      await axios.delete(`${API}/api/personel/${id}/kayit/${gercekIndex}`)
+      detayGetir()
+    } catch {
+      alert('Silme sırasında hata oluştu.')
+    }
+  }
+
   const kayitGuncelle = async () => {
     if (!duzenleModal) return
     setYukleniyor(true)
@@ -233,6 +243,13 @@ export default function Profil() {
                       borderRadius: 8, padding: '5px 10px', fontSize: 12,
                       color: '#64748b', cursor: 'pointer', flexShrink: 0,
                     }}>✏️</button>
+                  <button
+                    onClick={() => kayitSil(kayit.gercekIndex)}
+                    style={{
+                      background: '#fff5f5', border: '1px solid #fecaca',
+                      borderRadius: 8, padding: '5px 10px', fontSize: 12,
+                      color: '#dc2626', cursor: 'pointer', flexShrink: 0,
+                    }}>🗑️</button>
                 </div>
               )
             })}
