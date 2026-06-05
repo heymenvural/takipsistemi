@@ -17,7 +17,7 @@ function AnaSayfa() {
 
   const veriGetir = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/personel')
+      const res = await axios.get('/api/personel')
       setPersoneller(res.data)
     } catch (error) {
       console.error("Veri çekme hatası:", error)
@@ -33,7 +33,7 @@ function AnaSayfa() {
         saat: durum === 'mesai' ? Number(saat) : 0,
         aciklama: aciklama
       }
-      await axios.post(`http://localhost:5000/api/personel/${id}/kayit`, body)
+      await axios.post(`/api/personel/${id}/kayit`, body)
       alert("✅ Kayıt başarıyla eklendi!")
       setMesaiAcanId(null)
       setSaat('')

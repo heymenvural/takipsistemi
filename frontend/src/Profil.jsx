@@ -12,7 +12,7 @@ function Profil() {
   useEffect(() => {
     const detayGetir = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/personel/${id}`)
+        const res = await axios.get(`/api/personel/${id}`)
         setPersonel(res.data)
       } catch (error) {
         console.error("Profil çekme hatası", error)
