@@ -3,13 +3,14 @@ import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { getTumTatiller } from './hooks/useTatiller'
 
 const API = import.meta.env.VITE_API_URL || ''
 
 const DURUM_RENK = {
-  geldi: { bg: '#e8f8f0', text: '#16a34a', dot: '#22c55e', label: 'Geldi' },
-  izinli: { bg: '#fff7ed', text: '#d97706', dot: '#f59e0b', label: 'İzinli' },
-  mesai: { bg: '#eff6ff', text: '#2563eb', dot: '#3b82f6', label: 'Mesai' },
+  geldi:    { bg: '#e8f8f0', text: '#16a34a', dot: '#22c55e', label: 'Geldi' },
+  izinli:   { bg: '#fff7ed', text: '#d97706', dot: '#f59e0b', label: 'İzinli' },
+  mesai:    { bg: '#eff6ff', text: '#2563eb', dot: '#3b82f6', label: 'Mesai' },
   bekliyor: { bg: '#f8fafc', text: '#94a3b8', dot: '#cbd5e1', label: 'Girilmedi' },
 }
 
@@ -48,9 +49,21 @@ export default function AnaSayfa() {
   const [aciklama, setAciklama] = useState('')
   const [yukleniyor, setYukleniyor] = useState(false)
   const [basari, setBasari] = useState(null)
+  const [arama, setArama] = useState('')
   const navigate = useNavigate()
 
-  useEffect(() => { veriGetir() }, [])
+  const bugunTarih = new Date().toLocaleDateString('tr-TR')
+  const bugunYil = new Date().getFullYear()
+  const tatiller = getTumTatiller(bugunYil)
+  const bugunTatilMi = tatiller.includes(bugunTarih)
+
+  useEffect(() => {
+    veriGetir()
+    // Service Worker kaydet
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
+  }, [])
 
   const veriGetir = async () => {
     try {
@@ -77,9 +90,8 @@ export default function AnaSayfa() {
     if (!modalPersonel) return
     setYukleniyor(true)
     try {
-      const tarih = new Date().toLocaleDateString('tr-TR')
       await axios.post(`${API}/api/personel/${modalPersonel._id}/kayit`, {
-        tarih,
+        tarih: bugunTarih,
         durum: modalTip,
         saat: modalTip === 'mesai' ? Number(saat) : 0,
         aciklama,
@@ -108,7 +120,7 @@ export default function AnaSayfa() {
     doc.setFontSize(18)
     doc.text(tr('TUM PERSONEL GENEL OZET RAPORU'), 14, 22)
     doc.setFontSize(11)
-    doc.text(tr(`Rapor Tarihi: ${new Date().toLocaleDateString('tr-TR')}`), 14, 30)
+    doc.text(tr(`Rapor Tarihi: ${bugunTarih}`), 14, 30)
     const rows = personeller.map(p => {
       const toplamMesai = p.kayitlar.reduce((t, k) => t + (k.saat || 0), 0)
       const toplamIzin = p.kayitlar.filter(k => k.durum === 'izinli').length
@@ -119,8 +131,12 @@ export default function AnaSayfa() {
       body: rows, startY: 38, theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] }, styles: { fontSize: 10 },
     })
-    doc.save(`Personel_Ozet_${new Date().toLocaleDateString('tr-TR')}.pdf`)
+    doc.save(`Personel_Ozet_${bugunTarih}.pdf`)
   }
+
+  const filtrelenmisPersoneller = personeller.filter(p =>
+    p.isim_soyad.toLowerCase().includes(arama.toLowerCase())
+  )
 
   const bugunGirilenSayisi = personeller.filter(p => getBugunkuDurum(p.kayitlar) !== 'bekliyor').length
 
@@ -135,11 +151,10 @@ export default function AnaSayfa() {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: '#0f172a', letterSpacing: '-0.3px' }}>
-            Mesai Takip
-          </div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: '#0f172a', letterSpacing: '-0.3px' }}>Mesai Takip</div>
           <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
             {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {bugunTatilMi && <span style={{ marginLeft: 6, background: '#fef9c3', color: '#854d0e', borderRadius: 6, padding: '1px 6px', fontSize: 11 }}>🎉 Resmi Tatil</span>}
           </div>
         </div>
         <button onClick={topluRaporIndir} style={{
@@ -147,7 +162,7 @@ export default function AnaSayfa() {
           padding: '8px 14px', fontSize: 13, fontWeight: 500, color: '#475569',
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <span>📑</span> PDF Rapor
+          📑 PDF Rapor
         </button>
       </header>
 
@@ -158,13 +173,26 @@ export default function AnaSayfa() {
           { label: 'Bugün Girilen', value: bugunGirilenSayisi, color: '#16a34a', bg: '#dcfce7' },
           { label: 'Bekleyen', value: personeller.length - bugunGirilenSayisi, color: '#d97706', bg: '#fef9c3' },
         ].map(s => (
-          <div key={s.label} style={{
-            background: s.bg, borderRadius: 12, padding: '12px 10px', textAlign: 'center',
-          }}>
+          <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
             <div style={{ fontSize: 22, fontWeight: 600, color: s.color }}>{s.value}</div>
             <div style={{ fontSize: 11, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* ARAMA */}
+      <div style={{ padding: '12px 16px 0' }}>
+        <input
+          type="text"
+          value={arama}
+          onChange={e => setArama(e.target.value)}
+          placeholder="🔍 Personel ara..."
+          style={{
+            width: '100%', background: '#fff', border: '1px solid #e2e8f0',
+            borderRadius: 12, padding: '11px 14px', fontSize: 14,
+            color: '#0f172a', boxSizing: 'border-box', outline: 'none',
+          }}
+        />
       </div>
 
       {/* BAŞARI MESAJI */}
@@ -179,83 +207,80 @@ export default function AnaSayfa() {
       )}
 
       {/* PERSONEL LİSTESİ */}
-      <main style={{ padding: '14px 16px 80px' }}>
-        {personeller.map(p => {
-          const durum = getBugunkuDurum(p.kayitlar)
-          const renkObj = DURUM_RENK[durum]
-          const avatarRenk = getAvatarColor(p.isim_soyad)
-          const acik = acikId === p._id
-          return (
-            <div key={p._id} style={{
-              background: '#fff', border: '1px solid #e2e8f0',
-              borderRadius: 14, marginBottom: 10, overflow: 'hidden',
-              transition: 'box-shadow 0.2s',
-            }}>
-              {/* KART BAŞLIĞI */}
-              <div
-                onClick={() => setAcikId(acik ? null : p._id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '13px 14px', cursor: 'pointer',
-                }}
-              >
-                <div style={{
-                  width: 42, height: 42, borderRadius: '50%',
-                  background: avatarRenk.bg, color: avatarRenk.text,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: 600, flexShrink: 0,
-                }}>
-                  {getInitials(p.isim_soyad)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.isim_soyad}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
-                    <span style={{
-                      width: 7, height: 7, borderRadius: '50%',
-                      background: renkObj.dot, display: 'inline-block',
-                    }} />
-                    <span style={{ fontSize: 12, color: renkObj.text }}>{renkObj.label}</span>
-                  </div>
-                </div>
-                <span style={{
-                  fontSize: 18, color: '#94a3b8',
-                  transform: acik ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s', display: 'inline-block',
-                }}>⌄</span>
-              </div>
-
-              {/* AÇILABİLİR PANEL */}
-              {acik && (
-                <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px 14px 14px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    {[
-                      { tip: 'geldi', label: '✓ Geldi', bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-                      { tip: 'izinli', label: '☀ İzinli', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
-                      { tip: 'mesai', label: '⏱ Mesai', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-                    ].map(b => (
-                      <button key={b.tip} onClick={() => modalAc(p, b.tip)} style={{
-                        background: b.bg, border: `1px solid ${b.border}`,
-                        borderRadius: 10, padding: '10px 0', fontSize: 13,
-                        fontWeight: 500, color: b.color, cursor: 'pointer',
-                      }}>
-                        {b.label}
-                      </button>
-                    ))}
-                  </div>
-                  <button onClick={() => navigate(`/profil/${p._id}`)} style={{
-                    width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
-                    borderRadius: 10, padding: '10px 0', fontSize: 13,
-                    fontWeight: 500, color: '#475569', cursor: 'pointer',
+      <main style={{ padding: '12px 16px 80px' }}>
+        {filtrelenmisPersoneller.length === 0 && arama ? (
+          <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14, marginTop: 32 }}>
+            "{arama}" için sonuç bulunamadı
+          </div>
+        ) : (
+          filtrelenmisPersoneller.map(p => {
+            const durum = getBugunkuDurum(p.kayitlar)
+            const renkObj = DURUM_RENK[durum]
+            const avatarRenk = getAvatarColor(p.isim_soyad)
+            const acik = acikId === p._id
+            return (
+              <div key={p._id} style={{
+                background: '#fff', border: '1px solid #e2e8f0',
+                borderRadius: 14, marginBottom: 10, overflow: 'hidden',
+              }}>
+                <div
+                  onClick={() => setAcikId(acik ? null : p._id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', cursor: 'pointer' }}
+                >
+                  <div style={{
+                    width: 42, height: 42, borderRadius: '50%',
+                    background: avatarRenk.bg, color: avatarRenk.text,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 600, flexShrink: 0,
                   }}>
-                    📊 Detaylı Profil & Rapor
-                  </button>
+                    {getInitials(p.isim_soyad)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.isim_soyad}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: renkObj.dot, display: 'inline-block' }} />
+                      <span style={{ fontSize: 12, color: renkObj.text }}>{renkObj.label}</span>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 18, color: '#94a3b8',
+                    transform: acik ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s', display: 'inline-block',
+                  }}>⌄</span>
                 </div>
-              )}
-            </div>
-          )
-        })}
+
+                {acik && (
+                  <div style={{ borderTop: '1px solid #f1f5f9', padding: '12px 14px 14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      {[
+                        { tip: 'geldi', label: '✓ Geldi', bg: '#dcfce7', color: '#15803d', border: '#86efac' },
+                        { tip: 'izinli', label: '☀ İzinli', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+                        { tip: 'mesai', label: '⏱ Mesai', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+                      ].map(b => (
+                        <button key={b.tip} onClick={() => modalAc(p, b.tip)} style={{
+                          background: b.bg, border: `1px solid ${b.border}`,
+                          borderRadius: 10, padding: '10px 0', fontSize: 13,
+                          fontWeight: 500, color: b.color, cursor: 'pointer',
+                        }}>
+                          {b.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => navigate(`/profil/${p._id}`)} style={{
+                      width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                      borderRadius: 10, padding: '10px 0', fontSize: 13,
+                      fontWeight: 500, color: '#475569', cursor: 'pointer',
+                    }}>
+                      📊 Detaylı Profil & Rapor
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
       </main>
 
       {/* MODAL */}
@@ -274,9 +299,7 @@ export default function AnaSayfa() {
           }}>
             <style>{`@keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
             <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 18px' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>
-              {modalPersonel.isim_soyad}
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>{modalPersonel.isim_soyad}</div>
             <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
               {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </div>
@@ -284,53 +307,44 @@ export default function AnaSayfa() {
             {modalTip === 'mesai' ? (
               <>
                 <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 500 }}>Mesai Saati</label>
-                <input
-                  type="number" value={saat} onChange={e => setSaat(e.target.value)}
-                  placeholder="Örn: 3"
-                  style={{
-                    width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
-                    borderRadius: 10, padding: '11px 14px', fontSize: 14,
-                    color: '#0f172a', marginBottom: 12, boxSizing: 'border-box',
-                  }}
-                />
+                <input type="number" value={saat} onChange={e => setSaat(e.target.value)} placeholder="Örn: 3"
+                  style={{ width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, color: '#0f172a', marginBottom: 12, boxSizing: 'border-box' }} />
                 <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 500 }}>Açıklama (opsiyonel)</label>
-                <input
-                  type="text" value={aciklama} onChange={e => setAciklama(e.target.value)}
-                  placeholder="Örn: Hafta sonu çalışması"
-                  style={{
-                    width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
-                    borderRadius: 10, padding: '11px 14px', fontSize: 14,
-                    color: '#0f172a', marginBottom: 16, boxSizing: 'border-box',
-                  }}
-                />
+                <input type="text" value={aciklama} onChange={e => setAciklama(e.target.value)} placeholder="Örn: Hafta sonu çalışması"
+                  style={{ width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, color: '#0f172a', marginBottom: 16, boxSizing: 'border-box' }} />
                 <button onClick={kayitEkle} disabled={yukleniyor || !saat} style={{
-                  width: '100%', background: saat ? '#3b82f6' : '#e2e8f0',
-                  border: 'none', borderRadius: 12, padding: '13px',
-                  fontSize: 15, fontWeight: 600, color: saat ? '#fff' : '#94a3b8',
+                  width: '100%', background: saat ? '#3b82f6' : '#e2e8f0', border: 'none', borderRadius: 12,
+                  padding: '13px', fontSize: 15, fontWeight: 600, color: saat ? '#fff' : '#94a3b8',
                   cursor: saat ? 'pointer' : 'not-allowed', marginBottom: 8,
                 }}>
                   {yukleniyor ? 'Kaydediliyor...' : '💾 Mesaiyi Kaydet'}
                 </button>
               </>
+            ) : modalTip === 'izinli' ? (
+              <>
+                <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 6, fontWeight: 500 }}>Açıklama (opsiyonel)</label>
+                <input type="text" value={aciklama} onChange={e => setAciklama(e.target.value)} placeholder="Örn: Yıllık izin, Mazeret izni..."
+                  style={{ width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '11px 14px', fontSize: 14, color: '#0f172a', marginBottom: 16, boxSizing: 'border-box' }} />
+                <button onClick={kayitEkle} disabled={yukleniyor} style={{
+                  width: '100%', background: '#d97706', border: 'none', borderRadius: 12,
+                  padding: '13px', fontSize: 15, fontWeight: 600, color: '#fff', cursor: 'pointer', marginBottom: 8,
+                }}>
+                  {yukleniyor ? 'Kaydediliyor...' : '☀ İzinli Olarak Kaydet'}
+                </button>
+              </>
             ) : (
               <button onClick={kayitEkle} disabled={yukleniyor} style={{
-                width: '100%',
-                background: modalTip === 'geldi' ? '#16a34a' : '#d97706',
-                border: 'none', borderRadius: 12, padding: '13px',
-                fontSize: 15, fontWeight: 600, color: '#fff',
-                cursor: 'pointer', marginBottom: 8,
+                width: '100%', background: '#16a34a', border: 'none', borderRadius: 12,
+                padding: '13px', fontSize: 15, fontWeight: 600, color: '#fff', cursor: 'pointer', marginBottom: 8,
               }}>
-                {yukleniyor ? 'Kaydediliyor...' : modalTip === 'geldi' ? '✓ Geldi Olarak Kaydet' : '☀ İzinli Olarak Kaydet'}
+                {yukleniyor ? 'Kaydediliyor...' : '✓ Geldi Olarak Kaydet'}
               </button>
             )}
 
             <button onClick={modalKapat} style={{
               width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
-              borderRadius: 12, padding: '12px', fontSize: 14,
-              fontWeight: 500, color: '#64748b', cursor: 'pointer',
-            }}>
-              Vazgeç
-            </button>
+              borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 500, color: '#64748b', cursor: 'pointer',
+            }}>Vazgeç</button>
           </div>
         </div>
       )}
