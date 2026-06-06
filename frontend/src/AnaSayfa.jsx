@@ -50,6 +50,9 @@ export default function AnaSayfa() {
   const [yukleniyor, setYukleniyor] = useState(false)
   const [basari, setBasari] = useState(null)
   const [arama, setArama] = useState('')
+  const [ekipModal, setEkipModal] = useState(false)
+  const [yeniIsim, setYeniIsim] = useState('')
+  const [ekipYukleniyor, setEkipYukleniyor] = useState(false)
   const navigate = useNavigate()
 
   const bugunTarih = new Date().toLocaleDateString('tr-TR')
@@ -105,6 +108,25 @@ export default function AnaSayfa() {
     } finally {
       setYukleniyor(false)
     }
+  }
+
+  const personelEkle = async () => {
+    if (!yeniIsim.trim()) return
+    setEkipYukleniyor(true)
+    try {
+      await axios.post(`${API}/api/personel`, { isim_soyad: yeniIsim })
+      setYeniIsim('')
+      veriGetir()
+    } catch { alert('Personel eklenirken hata oluştu.') }
+    finally { setEkipYukleniyor(false) }
+  }
+
+  const personelSil = async (pid, isim) => {
+    if (!window.confirm(`${isim} kişisini silmek istediğinize emin misiniz? Tüm kayıtları da silinecek!`)) return
+    try {
+      await axios.delete(`${API}/api/personel/${pid}`)
+      veriGetir()
+    } catch { alert('Silme sırasında hata oluştu.') }
   }
 
   const topluRaporIndir = () => {
@@ -163,6 +185,13 @@ export default function AnaSayfa() {
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
         }}>
           📑 PDF Rapor
+        </button>
+        <button onClick={() => setEkipModal(true)} style={{
+          background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10,
+          padding: '8px 14px', fontSize: 13, fontWeight: 500, color: '#15803d',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          👤 Ekip
         </button>
       </header>
 
@@ -345,6 +374,45 @@ export default function AnaSayfa() {
               width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
               borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 500, color: '#64748b', cursor: 'pointer',
             }}>Vazgeç</button>
+          </div>
+        </div>
+      )}
+      {/* EKİP DÜZENLE MODAL */}
+      {ekipModal && (
+        <div onClick={e => e.target === e.currentTarget && setEkipModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px 36px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.25s ease' }}>
+            <style>{`@keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
+            <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 18px' }} />
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>Ekibi Düzenle</div>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>{personeller.length} kişi</div>
+
+            {/* YENİ PERSONEL EKLE */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input
+                type="text" value={yeniIsim} onChange={e => setYeniIsim(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && personelEkle()}
+                placeholder="Yeni personel adı soyadı..."
+                style={{ flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', fontSize: 14, color: '#0f172a', outline: 'none' }}
+              />
+              <button onClick={personelEkle} disabled={ekipYukleniyor || !yeniIsim.trim()} style={{
+                background: yeniIsim.trim() ? '#6366f1' : '#e2e8f0', border: 'none', borderRadius: 10,
+                padding: '10px 16px', fontSize: 13, fontWeight: 600,
+                color: yeniIsim.trim() ? '#fff' : '#94a3b8', cursor: yeniIsim.trim() ? 'pointer' : 'not-allowed',
+              }}>+ Ekle</button>
+            </div>
+
+            {/* MEVCUT PERSONEL LİSTESİ */}
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {personeller.map(p => (
+                <div key={p._id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#0f172a' }}>{p.isim_soyad}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{p.kayitlar.length} kayıt</div>
+                  <button onClick={() => personelSil(p._id, p.isim_soyad)} style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={() => setEkipModal(false)} style={{ marginTop: 16, width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 500, color: '#64748b', cursor: 'pointer' }}>Kapat</button>
           </div>
         </div>
       )}

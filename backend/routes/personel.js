@@ -23,7 +23,32 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// 3. PERSONELE GÜNLÜK KAYIT EKLE
+// 3. YENİ PERSONEL EKLE
+router.post('/', async (req, res) => {
+    try {
+        const { isim_soyad } = req.body;
+        if (!isim_soyad || !isim_soyad.trim())
+            return res.status(400).json({ mesaj: "İsim boş olamaz" });
+        const yeni = new Personel({ isim_soyad: isim_soyad.trim().toUpperCase(), kayitlar: [] });
+        await yeni.save();
+        res.status(201).json({ mesaj: "Personel eklendi!", personel: yeni });
+    } catch (err) {
+        res.status(500).json({ mesaj: "Personel eklenirken hata oluştu", hata: err });
+    }
+});
+
+// 4. PERSONEL SİL
+router.delete('/:id', async (req, res) => {
+    try {
+        const personel = await Personel.findByIdAndDelete(req.params.id);
+        if (!personel) return res.status(404).json({ mesaj: "Personel bulunamadı" });
+        res.status(200).json({ mesaj: "Personel silindi!" });
+    } catch (err) {
+        res.status(500).json({ mesaj: "Personel silinirken hata oluştu", hata: err });
+    }
+});
+
+// 5. PERSONELE GÜNLÜK KAYIT EKLE
 router.post('/:id/kayit', async (req, res) => {
     try {
         const { tarih, durum, saat, aciklama } = req.body;
@@ -37,7 +62,7 @@ router.post('/:id/kayit', async (req, res) => {
     }
 });
 
-// 4. KAYIT GÜNCELLE
+// 6. KAYIT GÜNCELLE
 router.put('/:id/kayit/:index', async (req, res) => {
     try {
         const { durum, saat, aciklama } = req.body;
@@ -57,7 +82,7 @@ router.put('/:id/kayit/:index', async (req, res) => {
     }
 });
 
-// 5. KAYIT SİL
+// 7. KAYIT SİL
 router.delete('/:id/kayit/:index', async (req, res) => {
     try {
         const personel = await Personel.findById(req.params.id);
@@ -74,7 +99,7 @@ router.delete('/:id/kayit/:index', async (req, res) => {
     }
 });
 
-// 6. OTOMATİK LİSTE KURULUMU
+// 8. OTOMATİK LİSTE KURULUMU
 router.get('/kurulum/baslat', async (req, res) => {
     const HAZIR_LISTE = [
         "FATMA ÇİMEN", "NİZAMETTİN GÖNHAN", "AYŞE PEHLİVANOĞLU", "NURSEL DEĞİRMENÇEVİR",
