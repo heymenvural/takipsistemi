@@ -37,30 +37,44 @@ router.post('/:id/kayit', async (req, res) => {
     }
 });
 
-// 4. KAYIT GÜNCELLE (Düzenleme için)
+// 4. KAYIT GÜNCELLE
 router.put('/:id/kayit/:index', async (req, res) => {
     try {
         const { durum, saat, aciklama } = req.body;
         const personel = await Personel.findById(req.params.id);
         if (!personel) return res.status(404).json({ mesaj: "Personel bulunamadı" });
-
         const index = parseInt(req.params.index);
         if (index < 0 || index >= personel.kayitlar.length)
             return res.status(404).json({ mesaj: "Kayıt bulunamadı" });
-
         personel.kayitlar[index].durum = durum;
         personel.kayitlar[index].saat = saat || 0;
         personel.kayitlar[index].aciklama = aciklama || '';
         personel.markModified('kayitlar');
         await personel.save();
-
         res.status(200).json({ mesaj: "Kayıt güncellendi!", personel });
     } catch (err) {
         res.status(500).json({ mesaj: "Kayıt güncellenirken hata oluştu", hata: err });
     }
 });
 
-// 5. OTOMATİK LİSTE KURULUMU
+// 5. KAYIT SİL
+router.delete('/:id/kayit/:index', async (req, res) => {
+    try {
+        const personel = await Personel.findById(req.params.id);
+        if (!personel) return res.status(404).json({ mesaj: "Personel bulunamadı" });
+        const index = parseInt(req.params.index);
+        if (index < 0 || index >= personel.kayitlar.length)
+            return res.status(404).json({ mesaj: "Kayıt bulunamadı" });
+        personel.kayitlar.splice(index, 1);
+        personel.markModified('kayitlar');
+        await personel.save();
+        res.status(200).json({ mesaj: "Kayıt silindi!", personel });
+    } catch (err) {
+        res.status(500).json({ mesaj: "Kayıt silinirken hata oluştu", hata: err });
+    }
+});
+
+// 6. OTOMATİK LİSTE KURULUMU
 router.get('/kurulum/baslat', async (req, res) => {
     const HAZIR_LISTE = [
         "FATMA ÇİMEN", "NİZAMETTİN GÖNHAN", "AYŞE PEHLİVANOĞLU", "NURSEL DEĞİRMENÇEVİR",
