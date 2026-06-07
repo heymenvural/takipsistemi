@@ -81,7 +81,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // 5. LİSTEYİ SENKRONİZE ET (Eski listeden yeniye geçiş)
-router.post('/senkronize/baslat', async (req, res) => {
+router.get('/senkronize/baslat', async (req, res) => {
     try {
         const mevcutPersoneller = await Personel.find();
 
