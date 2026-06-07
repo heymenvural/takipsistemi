@@ -2,11 +2,43 @@ const express = require('express');
 const router = express.Router();
 const Personel = require('../models/Personel');
 
+const GUNCEL_LISTE = [
+    "FATMA ÇİMEN",
+    "NİZAMETTİN GÖNHAN",
+    "AYŞE PEHLİVANOĞLU",
+    "SONGÜL KOLUKIRIK",
+    "MEHMET GÜNDOĞDU",
+    "MEHMET DAĞDELEN",
+    "ÖZLEM SEZER",
+    "CÜNEYT SÜZER",
+    "İRFAN GÜVENÇ",
+    "ERCAN KÜÇÜKAYLAK",
+    "EFEKAN KARTAL",
+    "YAŞAR UYAR",
+    "ÖMER BİNGÖL",
+    "MEHMET CANKUT",
+    "ŞEYMA KARADAĞ",
+    "GÜNGÖR SANCAK",
+    "MUSTAFA YILMAZ",
+    "MUSTAFA YÜKSEL",
+    "MEHMET DEMİRBAŞ",
+    "YUSUF AKTAŞ",
+    "OSMAN DOĞAN",
+    "SERKAN KAYA",
+    "DAVUT YALÇIN"
+];
+
 // 1. TÜM PERSONELİ VE KAYITLARINI GETİR
 router.get('/', async (req, res) => {
     try {
         const personeller = await Personel.find();
-        res.status(200).json(personeller);
+        // Listedeki sıraya göre sırala
+        const siralanmis = GUNCEL_LISTE
+            .map(isim => personeller.find(p => p.isim_soyad === isim))
+            .filter(Boolean);
+        // Listede olmayan ama veritabanında olanları sona ekle
+        const listeyeGirmeyenler = personeller.filter(p => !GUNCEL_LISTE.includes(p.isim_soyad));
+        res.status(200).json([...siralanmis, ...listeyeGirmeyenler]);
     } catch (err) {
         res.status(500).json({ mesaj: "Personel getirilirken hata oluştu", hata: err });
     }
@@ -48,7 +80,35 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// 5. PERSONELE GÜNLÜK KAYIT EKLE
+// 5. LİSTEYİ SENKRONİZE ET (Eski listeden yeniye geçiş)
+router.post('/senkronize/baslat', async (req, res) => {
+    try {
+        const mevcutPersoneller = await Personel.find();
+
+        // Listede olmayanları sil
+        const silinecekler = mevcutPersoneller.filter(p => !GUNCEL_LISTE.includes(p.isim_soyad));
+        for (const p of silinecekler) {
+            await Personel.findByIdAndDelete(p._id);
+        }
+
+        // Listede olup veritabanında olmayanları ekle
+        const mevcutIsimler = mevcutPersoneller.map(p => p.isim_soyad);
+        const eklenecekler = GUNCEL_LISTE.filter(isim => !mevcutIsimler.includes(isim));
+        for (const isim of eklenecekler) {
+            await new Personel({ isim_soyad: isim, kayitlar: [] }).save();
+        }
+
+        res.status(200).json({
+            mesaj: "Liste senkronize edildi!",
+            silinen: silinecekler.map(p => p.isim_soyad),
+            eklenen: eklenecekler
+        });
+    } catch (err) {
+        res.status(500).json({ mesaj: "Senkronizasyon sırasında hata oluştu", hata: err });
+    }
+});
+
+// 6. PERSONELE GÜNLÜK KAYIT EKLE
 router.post('/:id/kayit', async (req, res) => {
     try {
         const { tarih, durum, saat, aciklama } = req.body;
@@ -62,7 +122,7 @@ router.post('/:id/kayit', async (req, res) => {
     }
 });
 
-// 6. KAYIT GÜNCELLE
+// 7. KAYIT GÜNCELLE
 router.put('/:id/kayit/:index', async (req, res) => {
     try {
         const { durum, saat, aciklama } = req.body;
@@ -82,7 +142,7 @@ router.put('/:id/kayit/:index', async (req, res) => {
     }
 });
 
-// 7. KAYIT SİL
+// 8. KAYIT SİL
 router.delete('/:id/kayit/:index', async (req, res) => {
     try {
         const personel = await Personel.findById(req.params.id);
@@ -99,22 +159,15 @@ router.delete('/:id/kayit/:index', async (req, res) => {
     }
 });
 
-// 8. OTOMATİK LİSTE KURULUMU
+// 9. OTOMATİK LİSTE KURULUMU
 router.get('/kurulum/baslat', async (req, res) => {
-    const HAZIR_LISTE = [
-        "FATMA ÇİMEN", "NİZAMETTİN GÖNHAN", "AYŞE PEHLİVANOĞLU", "NURSEL DEĞİRMENÇEVİR",
-        "HÜSEYİN ÇENGEL", "SONGÜL KOLUKIRIK", "DAVUT YALÇIN", "MEHMET GÜNDOĞDU",
-        "DİLEK KAÇMAZ", "MÜJGAN DİKMEN", "MEHMET DAĞDELEN", "ÖZLEM SEZER",
-        "CÜNEYT SÜZER", "İRFAN GÜVENÇ", "YUSUF GÜVENÇ", "ERCAN KÜÇÜKAYLAK",
-        "EFEKAN KARTAL", "YAŞAR UYAR", "GÜLÇİN KURT", "ÖMER BİNGÖL"
-    ];
     try {
         const mevcutPersonel = await Personel.countDocuments();
         if (mevcutPersonel > 0)
             return res.status(400).json({ mesaj: "Veritabanı zaten dolu." });
-        const eklenecekler = HAZIR_LISTE.map(isim => ({ isim_soyad: isim, kayitlar: [] }));
+        const eklenecekler = GUNCEL_LISTE.map(isim => ({ isim_soyad: isim, kayitlar: [] }));
         await Personel.insertMany(eklenecekler);
-        res.status(201).json({ mesaj: "20 kişilik hazır liste eklendi!" });
+        res.status(201).json({ mesaj: "Liste veritabanına eklendi!" });
     } catch (err) {
         res.status(500).json({ mesaj: "Kurulum sırasında hata oluştu", hata: err });
     }
