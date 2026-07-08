@@ -1,20 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import { DURUMLAR, DURUM_SECENEKLERI, AYLAR, efektifDurum, ayOzeti, tarihStr, bugunStr, kayitTarihEsit, gelecekMi } from './utils/durum'
+import { kisiselAylikRapor } from './utils/pdf'
 import { getTumTatiller } from './hooks/useTatiller'
 
 const API = import.meta.env.VITE_API_URL || ''
 
-const DURUM_RENK = {
-  geldi:    { bg: '#dcfce7', text: '#15803d', border: '#86efac', label: 'Geldi',  dot: '#22c55e', takvim: '#16a34a' },
-  izinli:   { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa', label: 'İzinli', dot: '#f97316', takvim: '#f97316' },
-  mesai:    { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: 'Mesai',  dot: '#3b82f6', takvim: '#7c3aed' },
-  bekliyor: { bg: '#f8fafc', text: '#94a3b8', border: '#e2e8f0', label: 'Girilmedi', dot: '#cbd5e1', takvim: null },
-}
-
-const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık']
 const GUNLER = ['Pt','Sa','Ça','Pe','Cu','Ct','Pz']
 
 function getInitials(name) {
@@ -37,31 +29,10 @@ function getAvatarColor(name) {
   return colors[hash % colors.length]
 }
 
-function Takvim({ kayitlar, yil, ay, tatiller, onGunTikla }) {
+function Takvim({ kayitlar, yil, ay, onGunTikla }) {
   const ilkGun = new Date(yil, ay, 1)
   const sonGun = new Date(yil, ay + 1, 0)
   const baslangicGunu = (ilkGun.getDay() + 6) % 7
-
-  const kayitMap = {}
-  kayitlar.forEach(k => {
-    const parcalar = k.tarih.split('.')
-    if (parcalar.length === 3) {
-      const gun = parseInt(parcalar[0])
-      const kayitAy = parseInt(parcalar[1]) - 1
-      const kayitYil = parseInt(parcalar[2])
-      if (kayitYil === yil && kayitAy === ay) {
-        kayitMap[gun] = k.durum
-      }
-    }
-  })
-
-  const tatilMap = {}
-  tatiller.forEach(t => {
-    const p = t.split('.')
-    if (p.length === 3 && parseInt(p[1]) - 1 === ay && parseInt(p[2]) === yil) {
-      tatilMap[parseInt(p[0])] = true
-    }
-  })
 
   const bugun = new Date()
   const gunler = []
@@ -78,26 +49,26 @@ function Takvim({ kayitlar, yil, ay, tatiller, onGunTikla }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
         {gunler.map((gun, i) => {
           if (!gun) return <div key={`bos-${i}`} />
-          const durum = kayitMap[gun]
-          const tatil = tatilMap[gun]
-          const renkObj = durum ? DURUM_RENK[durum] : null
+          const d = efektifDurum(kayitlar, gun, ay, yil)
           const bugunMu = bugun.getDate() === gun && bugun.getMonth() === ay && bugun.getFullYear() === yil
-          const gelecekMi = new Date(yil, ay, gun) > bugun
+          const gelecek = gelecekMi(gun, ay, yil)
+          const tatil = d.tip === 'tatil'
+          const renkObj = !tatil && d.tip ? (d.otomatik ? DURUMLAR.otomatik : DURUMLAR[d.tip]) : null
 
           return (
             <div
               key={gun}
-              onClick={() => !gelecekMi && onGunTikla(gun, ay, yil, durum)}
+              onClick={() => !gelecek && onGunTikla(gun, ay, yil, d.kayit ? d.tip : null)}
               style={{
                 aspectRatio: '1', borderRadius: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: bugunMu ? 700 : 500,
                 background: tatil ? '#fef9c3' : renkObj ? renkObj.bg : 'transparent',
-                color: tatil ? '#854d0e' : renkObj ? renkObj.takvim : bugunMu ? '#6366f1' : gelecekMi ? '#cbd5e1' : '#64748b',
+                color: tatil ? '#854d0e' : renkObj ? renkObj.takvim : bugunMu ? '#6366f1' : gelecek ? '#cbd5e1' : '#64748b',
                 border: bugunMu ? '2px solid #6366f1' : '1px solid transparent',
-                cursor: gelecekMi ? 'default' : 'pointer',
+                cursor: gelecek ? 'default' : 'pointer',
                 position: 'relative',
-                opacity: gelecekMi ? 0.4 : 1,
+                opacity: gelecek ? 0.4 : 1,
               }}
             >
               {gun}
@@ -107,12 +78,14 @@ function Takvim({ kayitlar, yil, ay, tatiller, onGunTikla }) {
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
         {[
-          { label: 'Geldi', color: '#16a34a', bg: '#dcfce7' },
-          { label: 'İzinli', color: '#f97316', bg: '#fff7ed' },
-          { label: 'Mesai', color: '#7c3aed', bg: '#eff6ff' },
-          { label: 'Tatil', color: '#854d0e', bg: '#fef9c3' },
+          { label: 'Geldi', bg: DURUMLAR.geldi.bg, color: DURUMLAR.geldi.takvim },
+          { label: 'İzinli', bg: DURUMLAR.izinli.bg, color: DURUMLAR.izinli.takvim },
+          { label: 'Raporlu', bg: DURUMLAR.raporlu.bg, color: DURUMLAR.raporlu.takvim },
+          { label: 'Gelmedi', bg: DURUMLAR.gelmedi.bg, color: DURUMLAR.gelmedi.takvim },
+          { label: 'Mesai', bg: DURUMLAR.mesai.bg, color: DURUMLAR.mesai.takvim },
+          { label: 'Tatil', bg: '#fef9c3', color: '#854d0e' },
         ].map(l => (
           <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{ width: 12, height: 12, borderRadius: 3, background: l.bg, border: `1px solid ${l.color}20` }} />
@@ -120,7 +93,9 @@ function Takvim({ kayitlar, yil, ay, tatiller, onGunTikla }) {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>💡 Geçmiş bir güne tıklayarak kayıt ekleyebilirsiniz</div>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+        💡 Hafta içi boş günler otomatik "Geldi" görünür. Bir güne tıklayarak durumu değiştirebilirsin.
+      </div>
     </div>
   )
 }
@@ -134,15 +109,13 @@ export default function Profil() {
   const [yeniSaat, setYeniSaat] = useState('')
   const [yeniAciklama, setYeniAciklama] = useState('')
   const [yukleniyor, setYukleniyor] = useState(false)
+  const [pdfYukleniyor, setPdfYukleniyor] = useState(false)
   const [takvimAy, setTakvimAy] = useState(new Date().getMonth())
   const [takvimYil, setTakvimYil] = useState(new Date().getFullYear())
-  // Kayıt ekleme modal (hem profil butonu hem takvim tıklaması için)
-  const [kayitModal, setKayitModal] = useState(null) // { tarih, mevcutDurum }
+  const [kayitModal, setKayitModal] = useState(null)
   const [kayitDurum, setKayitDurum] = useState('')
   const [kayitSaat, setKayitSaat] = useState('')
   const [kayitAciklama, setKayitAciklama] = useState('')
-
-  const tatiller = getTumTatiller(takvimYil)
 
   useEffect(() => { detayGetir() }, [id])
 
@@ -155,10 +128,8 @@ export default function Profil() {
     }
   }
 
-  // Takvim günü tıklandı
   const gunTikla = (gun, ay, yil, mevcutDurum) => {
-    const tarihStr = `${String(gun).padStart(2,'0')}.${String(ay+1).padStart(2,'0')}.${yil}`
-    setKayitModal({ tarih: tarihStr, mevcutDurum })
+    setKayitModal({ tarih: tarihStr(gun, ay, yil), mevcutDurum })
     setKayitDurum(mevcutDurum || '')
     setKayitSaat('')
     setKayitAciklama('')
@@ -231,6 +202,18 @@ export default function Profil() {
     setTakvimYil(yeniYil)
   }
 
+  const pdfIndir = async () => {
+    setPdfYukleniyor(true)
+    try {
+      await kisiselAylikRapor(personel, takvimAy, takvimYil)
+    } catch (e) {
+      console.error(e)
+      alert('Rapor oluşturulurken hata oluştu.')
+    } finally {
+      setPdfYukleniyor(false)
+    }
+  }
+
   if (!personel) return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif", color: '#94a3b8', fontSize: 15 }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -238,37 +221,12 @@ export default function Profil() {
     </div>
   )
 
-  const toplamMesai = personel.kayitlar.reduce((t, k) => t + (k.saat || 0), 0)
-  const toplamIzin = personel.kayitlar.filter(k => k.durum === 'izinli').length
-  const toplamGeldi = personel.kayitlar.filter(k => k.durum === 'geldi').length
+  // Görüntülenen ayın özeti (takvim ile senkron)
+  const { ozet } = ayOzeti(personel.kayitlar, takvimAy, takvimYil)
   const avatarRenk = getAvatarColor(personel.isim_soyad)
   const siraliKayitlar = personel.kayitlar.map((k, i) => ({ ...k, gercekIndex: i })).reverse()
-  const bugunTarih = new Date().toLocaleDateString('tr-TR')
-
-  const pdfIndir = () => {
-    const tr = t => {
-      if (!t) return ''
-      return String(t)
-        .replace(/Ğ/g,'G').replace(/ğ/g,'g').replace(/Ü/g,'U').replace(/ü/g,'u')
-        .replace(/Ş/g,'S').replace(/ş/g,'s').replace(/İ/g,'I').replace(/ı/g,'i')
-        .replace(/Ö/g,'O').replace(/ö/g,'o').replace(/Ç/g,'C').replace(/ç/g,'c')
-    }
-    const doc = new jsPDF()
-    doc.setFontSize(18)
-    doc.text(tr('PERSONEL MESAI VE IZIN RAPORU'), 14, 22)
-    doc.setFontSize(11)
-    doc.text(tr(`Personel: ${personel.isim_soyad}`), 14, 32)
-    doc.text(tr(`Toplam Mesai: ${toplamMesai} Saat`), 14, 38)
-    doc.text(tr(`Kullanilan Izin: ${toplamIzin} Gun`), 14, 44)
-    doc.text(tr(`Rapor Tarihi: ${bugunTarih}`), 14, 50)
-    const rows = siraliKayitlar.map(k => [tr(k.tarih), tr(k.durum.toUpperCase()), k.saat > 0 ? `${k.saat} Saat` : '-', tr(k.aciklama || '-')])
-    autoTable(doc, {
-      head: [[tr('Tarih'), tr('Durum'), tr('Mesai'), tr('Aciklama')]],
-      body: rows, startY: 55, theme: 'grid',
-      headStyles: { fillColor: [99, 102, 241] }, styles: { fontSize: 10 },
-    })
-    doc.save(`${tr(personel.isim_soyad)}_Rapor.pdf`)
-  }
+  const bugunTarih = bugunStr()
+  const bugun = new Date()
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'DM Sans', sans-serif" }}>
@@ -280,7 +238,9 @@ export default function Profil() {
           <div style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{personel.isim_soyad}</div>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>Kişisel Rapor</div>
         </div>
-        <button onClick={pdfIndir} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 500, color: '#1d4ed8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>🖨️ PDF</button>
+        <button onClick={pdfIndir} disabled={pdfYukleniyor} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 500, color: '#1d4ed8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {pdfYukleniyor ? '⏳...' : `🖨️ ${AYLAR[takvimAy].slice(0,3)} PDF`}
+        </button>
       </header>
 
       <main style={{ padding: '16px 16px 80px', maxWidth: 480, margin: '0 auto' }}>
@@ -293,7 +253,7 @@ export default function Profil() {
             </div>
             <div>
               <div style={{ fontSize: 17, fontWeight: 600, color: '#0f172a' }}>{personel.isim_soyad}</div>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>{personel.kayitlar.length} toplam kayıt</div>
+              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 2 }}>{personel.kayitlar.length} girilmiş kayıt</div>
             </div>
           </div>
 
@@ -301,30 +261,33 @@ export default function Profil() {
           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
             <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 8 }}>Bugün için kayıt ekle — {bugunTarih}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              {[
-                { tip: 'geldi', label: '✓ Geldi', bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-                { tip: 'izinli', label: '☀ İzinli', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
-                { tip: 'mesai', label: '⏱ Mesai', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-              ].map(b => (
-                <button key={b.tip} onClick={() => gunTikla(new Date().getDate(), new Date().getMonth(), new Date().getFullYear(), null)} style={{ background: b.bg, border: `1px solid ${b.border}`, borderRadius: 10, padding: '10px 0', fontSize: 13, fontWeight: 500, color: b.color, cursor: 'pointer' }}
-                  onClick={() => { setKayitModal({ tarih: bugunTarih, mevcutDurum: null }); setKayitDurum(b.tip); setKayitSaat(''); setKayitAciklama('') }}>
-                  {b.label}
-                </button>
-              ))}
+              {DURUM_SECENEKLERI.map(b => {
+                const r = DURUMLAR[b.val]
+                return (
+                  <button key={b.val}
+                    onClick={() => { setKayitModal({ tarih: bugunTarih, mevcutDurum: null }); setKayitDurum(b.val); setKayitSaat(''); setKayitAciklama('') }}
+                    style={{ background: r.bg, border: `1px solid ${r.border}`, borderRadius: 10, padding: '10px 0', fontSize: 13, fontWeight: 500, color: r.text, cursor: 'pointer' }}>
+                    {b.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
 
-        {/* ÖZET */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+        {/* AYLIK ÖZET (görüntülenen ay) */}
+        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>{AYLAR[takvimAy]} {takvimYil} özeti</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 14 }}>
           {[
-            { label: 'Mesai', value: `${toplamMesai}s`, bg: '#eff6ff', color: '#1d4ed8' },
-            { label: 'İzin', value: `${toplamIzin}g`, bg: '#fff7ed', color: '#c2410c' },
-            { label: 'Geldi', value: `${toplamGeldi}g`, bg: '#dcfce7', color: '#15803d' },
+            { label: 'Geldi', value: ozet.geldi, bg: DURUMLAR.geldi.bg, color: DURUMLAR.geldi.text },
+            { label: 'İzin', value: ozet.izinli, bg: DURUMLAR.izinli.bg, color: DURUMLAR.izinli.text },
+            { label: 'Rapor', value: ozet.raporlu, bg: DURUMLAR.raporlu.bg, color: DURUMLAR.raporlu.text },
+            { label: 'Gelmedi', value: ozet.gelmedi, bg: DURUMLAR.gelmedi.bg, color: DURUMLAR.gelmedi.text },
+            { label: 'Mesai', value: `${ozet.mesaiSaat}s`, bg: DURUMLAR.mesai.bg, color: DURUMLAR.mesai.text },
           ].map(s => (
-            <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '14px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 600, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
+            <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '10px 4px', textAlign: 'center' }}>
+              <div style={{ fontSize: 17, fontWeight: 600, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -340,21 +303,21 @@ export default function Profil() {
           </div>
         </div>
 
-        <Takvim kayitlar={personel.kayitlar} yil={takvimYil} ay={takvimAy} tatiller={tatiller} onGunTikla={gunTikla} />
+        <Takvim kayitlar={personel.kayitlar} yil={takvimYil} ay={takvimAy} onGunTikla={gunTikla} />
 
-        {/* GEÇMİŞ HAREKETLERİ */}
+        {/* GEÇMİŞ HAREKETLERİ (elle girilenler) */}
         <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Geçmiş Hareketler
+          Girilmiş Kayıtlar
         </div>
 
         {siraliKayitlar.length === 0 ? (
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
-            Henüz kayıt bulunmuyor
+            Henüz elle girilmiş kayıt yok — hafta içi günler otomatik "Geldi" sayılıyor
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {siraliKayitlar.map((kayit) => {
-              const r = DURUM_RENK[kayit.durum] || DURUM_RENK.bekliyor
+              const r = DURUMLAR[kayit.durum] || DURUMLAR.bekliyor
               return (
                 <div key={kayit.gercekIndex} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: r.bg, border: `1px solid ${r.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -376,7 +339,7 @@ export default function Profil() {
         )}
       </main>
 
-      {/* KAYIT EKLE MODAL (takvim + profil butonu) */}
+      {/* KAYIT EKLE MODAL */}
       {kayitModal && (
         <div onClick={e => e.target === e.currentTarget && kayitModalKapat()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px 36px', animation: 'slideUp 0.25s ease' }}>
@@ -387,18 +350,17 @@ export default function Profil() {
 
             <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 8 }}>Durum</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
-              {[
-                { val: 'geldi', label: '✓ Geldi', bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-                { val: 'izinli', label: '☀ İzinli', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
-                { val: 'mesai', label: '⏱ Mesai', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-              ].map(d => (
-                <button key={d.val} onClick={() => setKayitDurum(d.val)} style={{
-                  background: kayitDurum === d.val ? d.bg : '#f8fafc',
-                  border: `2px solid ${kayitDurum === d.val ? d.border : '#e2e8f0'}`,
-                  borderRadius: 10, padding: '10px 0', fontSize: 13,
-                  fontWeight: 500, color: kayitDurum === d.val ? d.color : '#94a3b8', cursor: 'pointer',
-                }}>{d.label}</button>
-              ))}
+              {DURUM_SECENEKLERI.map(d => {
+                const r = DURUMLAR[d.val]
+                return (
+                  <button key={d.val} onClick={() => setKayitDurum(d.val)} style={{
+                    background: kayitDurum === d.val ? r.bg : '#f8fafc',
+                    border: `2px solid ${kayitDurum === d.val ? r.border : '#e2e8f0'}`,
+                    borderRadius: 10, padding: '10px 0', fontSize: 13,
+                    fontWeight: 500, color: kayitDurum === d.val ? r.text : '#94a3b8', cursor: 'pointer',
+                  }}>{d.label}</button>
+                )
+              })}
             </div>
 
             {kayitDurum === 'mesai' && (
@@ -435,18 +397,17 @@ export default function Profil() {
 
             <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 8 }}>Durum</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
-              {[
-                { val: 'geldi', label: '✓ Geldi', bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-                { val: 'izinli', label: '☀ İzinli', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
-                { val: 'mesai', label: '⏱ Mesai', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-              ].map(d => (
-                <button key={d.val} onClick={() => setYeniDurum(d.val)} style={{
-                  background: yeniDurum === d.val ? d.bg : '#f8fafc',
-                  border: `2px solid ${yeniDurum === d.val ? d.border : '#e2e8f0'}`,
-                  borderRadius: 10, padding: '10px 0', fontSize: 13,
-                  fontWeight: 500, color: yeniDurum === d.val ? d.color : '#94a3b8', cursor: 'pointer',
-                }}>{d.label}</button>
-              ))}
+              {DURUM_SECENEKLERI.map(d => {
+                const r = DURUMLAR[d.val]
+                return (
+                  <button key={d.val} onClick={() => setYeniDurum(d.val)} style={{
+                    background: yeniDurum === d.val ? r.bg : '#f8fafc',
+                    border: `2px solid ${yeniDurum === d.val ? r.border : '#e2e8f0'}`,
+                    borderRadius: 10, padding: '10px 0', fontSize: 13,
+                    fontWeight: 500, color: yeniDurum === d.val ? r.text : '#94a3b8', cursor: 'pointer',
+                  }}>{d.label}</button>
+                )
+              })}
             </div>
 
             {yeniDurum === 'mesai' && (
