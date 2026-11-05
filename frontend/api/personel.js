@@ -1,4 +1,4 @@
-import { dbConnect, Personel } from '../_lib/db.js'
+import { dbConnect, Personel } from './_lib/db.js'
 
 const GUNCEL_LISTE = [
   "FATMA ÇİMEN",
@@ -33,7 +33,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ mesaj: 'Veritabanı bağlantı hatası', hata: String(err) })
   }
 
-  const slug = req.query.slug || [] // /api/personel → [], /api/personel/abc → ['abc'] ...
+  // vercel.json: /api/personel/:path* → /api/personel?path=...
+  const ham = req.query.path
+  const slug = (Array.isArray(ham) ? ham.join('/') : (ham || ''))
+    .split('/').filter(Boolean)
   const method = req.method
 
   try {
