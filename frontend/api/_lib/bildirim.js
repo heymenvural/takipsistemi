@@ -38,10 +38,12 @@ export async function herkeseGonder(icerik, filtre = {}) {
 // Türkiye saatine göre bugünün tarihi (GG.AA.YYYY) ve haftanın günü
 export function bugunTR() {
   const p = new Intl.DateTimeFormat('tr-TR', {
-    timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short',
+    timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(new Date())
   const al = t => p.find(x => x.type === t)?.value
   const tarih = `${al('day')}.${al('month')}.${al('year')}`
   const [g, a, y] = tarih.split('.').map(Number)
-  return { tarih, gun: g, ay: a - 1, yil: y, haftaGunu: new Date(y, a - 1, g).getDay() }
+  return { tarih, gun: g, ay: a - 1, yil: y, haftaGunu: new Date(y, a - 1, g).getDay(),
+    saat: Number(al('hour')), dakika: Number(al('minute')) }
 }

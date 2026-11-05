@@ -6,7 +6,7 @@ import { topluAylikRapor } from './utils/pdf'
 import { getTumTatiller } from './hooks/useTatiller'
 import Hatirlatici from './Hatirlatici'
 
-const API = import.meta.env.VITE_API_URL || ''
+const API = '' // API aynı sitede; eski Railway adresi (VITE_API_URL) artık kullanılmıyor
 
 function getInitials(name) {
   return name.split(' ').map(n => n[0]).slice(0, 2).join('')
@@ -162,6 +162,7 @@ export default function AnaSayfa() {
             {bugunTatilMi && <span style={{ marginLeft: 6, background: '#fef9c3', color: '#854d0e', borderRadius: 6, padding: '1px 6px', fontSize: 11 }}>🎉 Resmi Tatil</span>}
           </div>
         </div>
+        <Hatirlatici yer="baslik" />
         <button onClick={() => setRaporModal(true)} style={{
           background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 10,
           padding: '8px 12px', fontSize: 13, fontWeight: 500, color: '#475569',

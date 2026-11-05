@@ -1,0 +1,14 @@
+# Günlük hatırlatma bildirimi — hafta içi 13:45 (Türkiye saati = 10:45 UTC)
+# GitHub zamanlayıcısı birkaç dakika gecikebilir; ikinci tetik ve Vercel yedek görevi
+# bildirimin mutlaka gitmesini sağlar. Sunucu günde yalnızca bir kez gönderir.
+name: Gunluk hatirlatma
+on:
+  schedule:
+    - cron: '45 10 * * 1-5'
+    - cron: '55 10 * * 1-5'
+  workflow_dispatch:
+jobs:
+  hatirlat:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --retry 3 --max-time 60 https://takipsistemi-nine.vercel.app/api/hatirlat

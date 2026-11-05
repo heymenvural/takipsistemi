@@ -1,9 +1,18 @@
 {
   "crons": [
-    { "path": "/api/hatirlat", "schedule": "0 13 * * 1-5" }
+    {
+      "path": "/api/hatirlat",
+      "schedule": "0 11 * * 1-5"
+    }
   ],
   "rewrites": [
-    { "source": "/api/personel/:path*", "destination": "/api/personel?path=:path*" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/personel/:path*",
+      "destination": "/api/personel?path=:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

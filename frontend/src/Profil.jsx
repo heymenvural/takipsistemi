@@ -5,7 +5,7 @@ import { DURUMLAR, DURUM_SECENEKLERI, AYLAR, efektifDurum, ayOzeti, tarihStr, bu
 import { kisiselAylikRapor } from './utils/pdf'
 import { getTumTatiller } from './hooks/useTatiller'
 
-const API = import.meta.env.VITE_API_URL || ''
+const API = '' // API aynı sitede; eski Railway adresi (VITE_API_URL) artık kullanılmıyor
 
 const GUNLER = ['Pt','Sa','Ça','Pe','Cu','Ct','Pz']
 
