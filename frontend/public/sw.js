@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mesai-takip-v1'
+const CACHE_NAME = 'mesai-takip-v2'
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json']
 
 self.addEventListener('install', e => {
@@ -27,5 +27,32 @@ self.addEventListener('fetch', e => {
         return res
       })
       .catch(() => caches.match(e.request))
+  )
+})
+
+// ── Günlük hatırlatma bildirimleri ──
+self.addEventListener('push', e => {
+  let veri = {}
+  try { veri = e.data ? e.data.json() : {} } catch { veri = { govde: e.data && e.data.text() } }
+  e.waitUntil(
+    self.registration.showNotification(veri.baslik || 'Mesai Takip', {
+      body: veri.govde || 'Bugünün kayıtlarını girmeyi unutmayın.',
+      icon: '/icon.png',
+      badge: '/icon.png',
+      tag: 'gunluk-hatirlatma',
+      renotify: true,
+      data: { url: veri.url || '/' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close()
+  const hedef = (e.notification.data && e.notification.data.url) || '/'
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(liste => {
+      for (const c of liste) { if ('focus' in c) { c.navigate(hedef); return c.focus() } }
+      return self.clients.openWindow(hedef)
+    })
   )
 })

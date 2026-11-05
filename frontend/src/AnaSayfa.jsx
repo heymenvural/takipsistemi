@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { DURUMLAR, DURUM_SECENEKLERI, AYLAR, efektifDurum, bugunStr } from './utils/durum'
 import { topluAylikRapor } from './utils/pdf'
 import { getTumTatiller } from './hooks/useTatiller'
+import Hatirlatici from './Hatirlatici'
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -190,6 +191,9 @@ export default function AnaSayfa() {
           </div>
         ))}
       </div>
+
+      {/* GÜNLÜK HATIRLATMA */}
+      <Hatirlatici />
 
       {/* BİLGİ NOTU */}
       <div style={{ margin: '10px 16px 0', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: '8px 12px', fontSize: 12, color: '#4338ca' }}>

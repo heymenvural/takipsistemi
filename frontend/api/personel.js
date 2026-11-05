@@ -1,4 +1,5 @@
 import { dbConnect, Personel } from './_lib/db.js'
+import { oturumGerekli } from './_lib/auth.js'
 
 const GUNCEL_LISTE = [
   "FATMA ÇİMEN",
@@ -34,6 +35,8 @@ const GUNCEL_LISTE = [
 ]
 
 export default async function handler(req, res) {
+  if (!oturumGerekli(req, res)) return
+
   try {
     await dbConnect()
   } catch (err) {
@@ -82,49 +85,6 @@ export default async function handler(req, res) {
         eklenen.push(isim)
       }
       return res.status(200).json({ mesaj: 'Liste senkronize edildi (silme yapılmadı)', pasif, aktif, eklenen })
-    }
-
-    // ── TEK SEFERLİK: 2–5 Kasım 2026 defter kayıtları (tekrar çağrılırsa aynı tarihi günceller) ──
-    if (slug[0] === 'aktar' && slug[1] === 'kasim-2026') {
-      const KAYITLAR = [
-      ["02.11.2026", "İRFAN GÜVENÇ", "izinli", "Yıllık izin"],
-      ["02.11.2026", "MEHMET CANKUT", "izinli", "Doktora gitti"],
-      ["02.11.2026", "MUSTAFA YILMAZ", "izinli", "Aydın'a doktora gitti (rapor için)"],
-      ["02.11.2026", "DAVUT YALÇIN", "izinli", "Doktora gitti"],
-      ["02.11.2026", "HÜSEYİN ÇENGEL", "izinli", "Yıllık izin"],
-      ["02.11.2026", "TÜLAY ÖZKARA", "izinli", "Yıllık izin"],
-      ["02.11.2026", "SERKAN KAYA", "geldi", "Çöpte"],
-      ["02.11.2026", "SONGÜL KOLUKIRIK", "geldi", "Pazar akşamı hasta için Nazilli'ye gitti"],
-      ["02.11.2026", "ÖMER BİNGÖL", "geldi", "2 cenaze, Evcik – Savcıllı nakil"],
-      ["02.11.2026", "GÜNGÖR SANCAK", "geldi", "Nazilli cenaze, sandalye vb. / Buharkent cenaze, mezarlığa"],
-      ["02.11.2026", "MEHMET DEMİRBAŞ", "geldi", "Sandalye taşıdı"],
-      ["02.11.2026", "YUSUF AKTAŞ", "geldi", "2 adet mezar kazdı"],
-      ["03.11.2026", "YAŞAR UYAR", "izinli", "Yıllık izin"],
-      ["03.11.2026", "İRFAN GÜVENÇ", "izinli", "Yıllık izin"],
-      ["03.11.2026", "MEHMET CANKUT", "raporlu", ""],
-      ["03.11.2026", "TÜLAY ÖZKARA", "izinli", "Yıllık izin"],
-      ["04.11.2026", "İRFAN GÜVENÇ", "izinli", "Yıllık izin"],
-      ["04.11.2026", "YAŞAR UYAR", "izinli", "Yıllık izin"],
-      ["04.11.2026", "MEHMET CANKUT", "raporlu", ""],
-      ["04.11.2026", "HÜSEYİN ÇENGEL", "izinli", "Yıllık izin"],
-      ["04.11.2026", "TÜLAY ÖZKARA", "izinli", "Yıllık izin"],
-      ["05.11.2026", "MEHMET GÜNDOĞDU", "izinli", "Mahkemede"],
-      ["05.11.2026", "İRFAN GÜVENÇ", "izinli", "Yıllık izin"],
-      ["05.11.2026", "YAŞAR UYAR", "izinli", "Yıllık izin"],
-      ["05.11.2026", "HÜSEYİN ÇENGEL", "izinli", "Yıllık izin"],
-      ["05.11.2026", "TÜLAY ÖZKARA", "izinli", "Yıllık izin"]
-      ]
-      const sonuc = [], bulunamayan = []
-      for (const [tarih, isim, durum, aciklama] of KAYITLAR) {
-        const p = await Personel.findOne({ isim_soyad: isim })
-        if (!p) { bulunamayan.push(isim); continue }
-        const i = p.kayitlar.findIndex(k => k.tarih === tarih)
-        const kayit = { tarih, durum, saat: 0, aciklama }
-        if (i >= 0) { p.kayitlar[i] = kayit; p.markModified('kayitlar') } else p.kayitlar.push(kayit)
-        await p.save()
-        sonuc.push(`${tarih} ${isim} → ${durum}`)
-      }
-      return res.status(200).json({ yazilan: sonuc.length, bulunamayan, sonuc })
     }
 
     // ── /api/personel/kurulum/baslat ───────────────────────────────

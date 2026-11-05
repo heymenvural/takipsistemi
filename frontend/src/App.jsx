@@ -3,8 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import AnaSayfa from './AnaSayfa'
 import Profil from './Profil'
 import Login from './Login'
+import { oturumAl } from './oturum'
 
-function KarsilamaEkrani({ onBitti }) {
+function KarsilamaEkrani({ onBitti, ad }) {
   const [asama, setAsama] = useState(0) // 0: giriyor, 1: görünür, 2: çıkıyor
 
   useEffect(() => {
@@ -49,7 +50,7 @@ function KarsilamaEkrani({ onBitti }) {
           HOŞ GELDİNİZ
         </div>
         <div style={{ fontSize: 26, fontWeight: 600, color: '#fff', letterSpacing: '-0.5px' }}>
-          Sayın Mesud Vural
+          Sayın {ad || 'Mesud Vural'}
         </div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>
           Mesai Takip Sistemi
@@ -78,12 +79,12 @@ function KarsilamaEkrani({ onBitti }) {
 }
 
 function App() {
-  const [girisYapildi, setGirisYapildi] = useState(
-    sessionStorage.getItem('giris') === 'true'
-  )
+  const [girisYapildi, setGirisYapildi] = useState(() => !!oturumAl()?.token)
   const [karsilamaGoster, setKarsilamaGoster] = useState(false)
+  const [ad, setAd] = useState(() => oturumAl()?.ad || '')
 
-  const handleGiris = () => {
+  const handleGiris = (girenAd) => {
+    setAd(girenAd || '')
     setKarsilamaGoster(true)
   }
 
@@ -93,7 +94,7 @@ function App() {
   }
 
   if (karsilamaGoster) {
-    return <KarsilamaEkrani onBitti={handleKarsilamaBitti} />
+    return <KarsilamaEkrani onBitti={handleKarsilamaBitti} ad={ad} />
   }
 
   if (!girisYapildi) {

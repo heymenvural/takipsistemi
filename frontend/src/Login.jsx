@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import axios from 'axios'
+import { oturumKaydet } from './oturum'
 
 export default function Login({ onGiris }) {
   const [kullanici, setKullanici] = useState('')
@@ -6,20 +8,16 @@ export default function Login({ onGiris }) {
   const [hata, setHata] = useState(false)
   const [yukleniyor, setYukleniyor] = useState(false)
 
-  const girisYap = () => {
+  const girisYap = async () => {
     setYukleniyor(true)
-    setTimeout(() => {
-      if (
-        kullanici === import.meta.env.VITE_LOGIN_USER &&
-        sifre === import.meta.env.VITE_LOGIN_PASS
-      ) {
-        sessionStorage.setItem('giris', 'true')
-        onGiris()
-      } else {
-        setHata(true)
-        setYukleniyor(false)
-      }
-    }, 600)
+    try {
+      const res = await axios.post('/api/giris', { kullanici: kullanici.trim(), sifre })
+      oturumKaydet(res.data.token, res.data.ad)
+      onGiris(res.data.ad)
+    } catch {
+      setHata(true)
+      setYukleniyor(false)
+    }
   }
 
   const handleKeyDown = (e) => {
@@ -45,7 +43,7 @@ export default function Login({ onGiris }) {
             fontSize: 28, margin: '0 auto 16px',
           }}>👥</div>
           <div style={{ fontSize: 22, fontWeight: 600, color: '#0f172a' }}>Mesai Takip</div>
-          <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4 }}>Devam etmek için giriş yapın</div>
+          <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4 }}>Bir kez giriş yapmanız yeterli</div>
         </div>
 
         {/* FORM KARTI */}
@@ -59,6 +57,9 @@ export default function Login({ onGiris }) {
             </label>
             <input
               type="text"
+              name="username"
+              autoComplete="username"
+              autoCapitalize="none"
               value={kullanici}
               onChange={e => { setKullanici(e.target.value); setHata(false) }}
               onKeyDown={handleKeyDown}
@@ -78,6 +79,8 @@ export default function Login({ onGiris }) {
             </label>
             <input
               type="password"
+              name="password"
+              autoComplete="current-password"
               value={sifre}
               onChange={e => { setSifre(e.target.value); setHata(false) }}
               onKeyDown={handleKeyDown}
