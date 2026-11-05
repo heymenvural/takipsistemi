@@ -20,6 +20,9 @@ export const DURUM_SECENEKLERI = [
   { val: 'mesai',   label: '⏱ Mesai' },
 ]
 
+// Otomatik "Geldi" bu tarihten itibaren uygulanır (öncesindeki boş günler boş kalır)
+export const BASLANGIC = new Date(2026, 10, 2) // 2 Kasım 2026
+
 export const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık']
 export const GUN_ADLARI = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi']
 
@@ -74,6 +77,7 @@ export function efektifDurum(kayitlar, gun, ay, yil) {
   if (tatilMi(gun, ay, yil)) return { tip: 'tatil', kayit: null, otomatik: false }
   if (gelecekMi(gun, ay, yil)) return { tip: null, kayit: null, otomatik: false }
   if (haftaSonuMu(gun, ay, yil)) return { tip: null, kayit: null, otomatik: false }
+  if (new Date(yil, ay, gun) < BASLANGIC) return { tip: null, kayit: null, otomatik: false }
   return { tip: 'geldi', kayit: null, otomatik: true } // otomatik geldi
 }
 
