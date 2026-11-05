@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable'
 import { AYLAR, ayOzeti, tarihStr, bugunStr } from './durum'
 
 // Rapor başlığında görünecek kurum adı — dilediğin gibi değiştir
-export const KURUM_ADI = 'MESAİ TAKİP SİSTEMİ'
+export const KURUM_ADI = 'BUHARKENT BELEDİYESİ'
 
 // Türkçe karakter destekli fontlar sadece PDF üretilirken yüklenir (lazy)
 async function docOlustur() {
