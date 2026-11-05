@@ -10,7 +10,14 @@ if (!cached) {
 export async function dbConnect() {
   if (cached.conn) return cached.conn
   if (!cached.promise) {
-    cached.promise = mongoose.connect(process.env.MONGO_URI, {
+    // Panele yapıştırırken oluşan hataları temizle: "MONGO_URI=" öneki, tırnak, boşluk, satır sonu
+    const uri = String(process.env.MONGO_URI || '')
+      .trim()
+      .replace(/^MONGO_URI\s*=\s*/i, '')
+      .replace(/^['"]|['"]$/g, '')
+      .split(/\s+/)[0]
+    if (!uri) throw new Error('MONGO_URI tanımlı değil')
+    cached.promise = mongoose.connect(uri, {
       bufferCommands: false,
     })
   }
