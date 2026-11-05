@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { DURUMLAR, DURUM_SECENEKLERI, AYLAR, efektifDurum, ayOzeti, tarihStr, bugunStr, kayitTarihEsit, gelecekMi } from './utils/durum'
+import { DURUMLAR, DURUM_SECENEKLERI, AYLAR, efektifDurum, ayOzeti, tarihStr, bugunStr, kayitTarihEsit, gelecekMi, cokGunluAralik, cokGunluAciklama } from './utils/durum'
+import GunSayisiSecici from './GunSayisiSecici'
 import { kisiselAylikRapor } from './utils/pdf'
 import { getTumTatiller } from './hooks/useTatiller'
 
@@ -94,7 +95,7 @@ function Takvim({ kayitlar, yil, ay, onGunTikla }) {
         ))}
       </div>
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
-        💡 Hafta içi boş günler otomatik "Geldi" görünür. Bir güne tıklayarak durumu değiştirebilirsin.
+        💡 Bir güne dokunarak durumunu değiştirebilirsiniz.
       </div>
     </div>
   )
@@ -116,6 +117,7 @@ export default function Profil() {
   const [kayitDurum, setKayitDurum] = useState('')
   const [kayitSaat, setKayitSaat] = useState('')
   const [kayitAciklama, setKayitAciklama] = useState('')
+  const [kayitGun, setKayitGun] = useState(1)
 
   useEffect(() => { detayGetir() }, [id])
 
@@ -133,6 +135,7 @@ export default function Profil() {
     setKayitDurum(mevcutDurum || '')
     setKayitSaat('')
     setKayitAciklama('')
+    setKayitGun(1)
   }
 
   const kayitModalKapat = () => setKayitModal(null)
@@ -141,12 +144,22 @@ export default function Profil() {
     if (!kayitDurum) return
     setYukleniyor(true)
     try {
-      await axios.post(`${API}/api/personel/${id}/kayit`, {
-        tarih: kayitModal.tarih,
-        durum: kayitDurum,
-        saat: kayitDurum === 'mesai' ? Number(kayitSaat) : 0,
-        aciklama: kayitAciklama,
-      })
+      const cokGunlu = (kayitDurum === 'izinli' || kayitDurum === 'raporlu') && kayitGun > 1
+      if (cokGunlu) {
+        const aralik = cokGunluAralik(kayitModal.tarih, kayitGun)
+        const not = cokGunluAciklama(kayitDurum, aralik, kayitAciklama)
+        await axios.post(`${API}/api/personel/${id}/kayit`, {
+          kayitlar: aralik.isGunleri.map(t => ({ tarih: t, durum: kayitDurum, saat: 0, aciklama: not })),
+        })
+      } else {
+        await axios.post(`${API}/api/personel/${id}/kayit`, {
+          tarih: kayitModal.tarih,
+          durum: kayitDurum,
+          saat: kayitDurum === 'mesai' ? Number(kayitSaat) : 0,
+          aciklama: kayitAciklama,
+        })
+      }
+      try { navigator.vibrate?.(30) } catch { /* yok */ }
       kayitModalKapat()
       detayGetir()
     } catch {
@@ -265,7 +278,7 @@ export default function Profil() {
                 const r = DURUMLAR[b.val]
                 return (
                   <button key={b.val}
-                    onClick={() => { setKayitModal({ tarih: bugunTarih, mevcutDurum: null }); setKayitDurum(b.val); setKayitSaat(''); setKayitAciklama('') }}
+                    onClick={() => { setKayitModal({ tarih: bugunTarih, mevcutDurum: null }); setKayitDurum(b.val); setKayitSaat(''); setKayitAciklama(''); setKayitGun(1) }}
                     style={{ background: r.bg, border: `1px solid ${r.border}`, borderRadius: 10, padding: '10px 0', fontSize: 13, fontWeight: 500, color: r.text, cursor: 'pointer' }}>
                     {b.label}
                   </button>
@@ -312,7 +325,7 @@ export default function Profil() {
 
         {siraliKayitlar.length === 0 ? (
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
-            Henüz elle girilmiş kayıt yok — hafta içi günler otomatik "Geldi" sayılıyor
+            Henüz kayıt girilmedi
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -342,7 +355,7 @@ export default function Profil() {
       {/* KAYIT EKLE MODAL */}
       {kayitModal && (
         <div onClick={e => e.target === e.currentTarget && kayitModalKapat()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px 36px', animation: 'slideUp 0.25s ease' }}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px 36px', animation: 'slideUp 0.25s ease', maxHeight: '92vh', overflowY: 'auto' }}>
             <style>{`@keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
             <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 18px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>Kayıt Ekle</div>
@@ -362,6 +375,10 @@ export default function Profil() {
                 )
               })}
             </div>
+
+            {(kayitDurum === 'izinli' || kayitDurum === 'raporlu') && (
+              <GunSayisiSecici durum={kayitDurum} baslangic={kayitModal.tarih} deger={kayitGun} onChange={setKayitGun} />
+            )}
 
             {kayitDurum === 'mesai' && (
               <>
@@ -390,7 +407,7 @@ export default function Profil() {
       {/* DÜZENLE MODAL */}
       {duzenleModal && (
         <div onClick={e => e.target === e.currentTarget && duzenleKapat()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px 36px', animation: 'slideUp 0.25s ease' }}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px 36px', animation: 'slideUp 0.25s ease', maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 18px' }} />
             <div style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>Kaydı Düzenle</div>
             <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>{duzenleModal.kayit.tarih}</div>

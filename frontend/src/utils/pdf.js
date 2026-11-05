@@ -21,7 +21,7 @@ async function docOlustur() {
 }
 
 function durumEtiketi(s) {
-  if (s.tip === 'geldi') return s.otomatik ? 'Geldi' : 'Geldi'
+  if (s.tip === 'geldi') return 'Geldi'
   if (s.tip === 'izinli') return 'İzinli'
   if (s.tip === 'raporlu') return 'Raporlu'
   if (s.tip === 'gelmedi') return 'Gelmedi'
@@ -169,7 +169,7 @@ export async function topluAylikRapor(personeller, ay, yil) {
   let y = doc.lastAutoTable.finalY + 6
   doc.setFontSize(8)
   doc.setTextColor(120)
-  doc.text(`Not: Parantez içindeki sayılar ${AYLAR[ay]} ayının günlerini belirtir. Kayıt girilmemiş hafta içi günler "Geldi" olarak sayılmıştır.`, 14, y)
+  doc.text(`Not: Sütunlardaki sayılar ${AYLAR[ay]} ayının günlerini belirtir.`, 14, y)
   doc.setTextColor(0)
 
   // İmza

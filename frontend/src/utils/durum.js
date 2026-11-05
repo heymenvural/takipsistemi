@@ -119,3 +119,41 @@ export function ayOzeti(kayitlar, ay, yil) {
   })
   return { ozet, tarihler, dokum }
 }
+
+// ─── ÇOK GÜNLÜ İZİN / RAPOR ─────────────────────────────────────────
+// Takvim günü sayılır (hafta sonu da süreye dahil), ama kayıt yalnızca
+// hafta içi ve resmi tatil olmayan günlere yazılır.
+// Örn. Pazartesi + 8 gün → Pzt–Cum (5) + Cmt–Paz (sayılır, yazılmaz) + Pzt (1) = 6 kayıt
+export function cokGunluAralik(baslangicTarih, gunSayisi) {
+  const p = String(baslangicTarih).split('.').map(Number)
+  const bas = new Date(p[2], p[1] - 1, p[0])
+  const n = Math.max(1, Math.min(365, parseInt(gunSayisi) || 1))
+  const isGunleri = []
+  let bitis = bas
+  for (let i = 0; i < n; i++) {
+    const d = new Date(bas.getFullYear(), bas.getMonth(), bas.getDate() + i)
+    bitis = d
+    const g = d.getDate(), a = d.getMonth(), y = d.getFullYear()
+    if (!haftaSonuMu(g, a, y) && !tatilMi(g, a, y)) isGunleri.push(tarihStr(g, a, y))
+  }
+  return {
+    isGunleri,
+    baslangic: tarihStr(bas.getDate(), bas.getMonth(), bas.getFullYear()),
+    bitis: tarihStr(bitis.getDate(), bitis.getMonth(), bitis.getFullYear()),
+    donus: (() => { // işe dönüş: bitişten sonraki ilk iş günü
+      let d = new Date(bitis.getFullYear(), bitis.getMonth(), bitis.getDate() + 1)
+      while (haftaSonuMu(d.getDate(), d.getMonth(), d.getFullYear()) || tatilMi(d.getDate(), d.getMonth(), d.getFullYear()))
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
+      return tarihStr(d.getDate(), d.getMonth(), d.getFullYear())
+    })(),
+    gun: n,
+  }
+}
+
+// Açıklamaya yazılacak özet: "8 günlük yıllık izin (06.11.2026 – 13.11.2026)"
+export function cokGunluAciklama(durum, aralik, ekAciklama) {
+  const tur = durum === 'raporlu' ? 'rapor' : 'izin'
+  const ek = (ekAciklama || '').trim()
+  const bas = aralik.gun > 1 ? `${aralik.gun} günlük ${tur} (${aralik.baslangic} – ${aralik.bitis})` : ''
+  return [ek, bas].filter(Boolean).join(' · ')
+}

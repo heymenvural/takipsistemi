@@ -117,19 +117,23 @@ export default async function handler(req, res) {
 
     // ── /api/personel/:id/kayit ────────────────────────────────────
     if (slug.length === 2 && slug[1] === 'kayit' && method === 'POST') {
-      const { tarih, durum, saat, aciklama } = req.body || {}
       const personel = await Personel.findById(id)
       if (!personel) return res.status(404).json({ mesaj: 'Personel bulunamadı' })
-      // Aynı tarihe ikinci kayıt girilirse eskisini güncelle (çift kayıt önleme)
-      const mevcut = personel.kayitlar.findIndex(k => k.tarih === tarih)
-      if (mevcut >= 0) {
-        personel.kayitlar[mevcut].durum = durum
-        personel.kayitlar[mevcut].saat = saat || 0
-        personel.kayitlar[mevcut].aciklama = aciklama || ''
-        personel.markModified('kayitlar')
-      } else {
-        personel.kayitlar.push({ tarih, durum, saat, aciklama })
+      // Tek kayıt { tarih, durum, ... } veya çok günlü izin/rapor için { kayitlar: [...] }
+      const gelen = Array.isArray(req.body?.kayitlar) ? req.body.kayitlar.slice(0, 400) : [req.body || {}]
+      for (const { tarih, durum, saat, aciklama } of gelen) {
+        if (!tarih || !durum) continue
+        // Aynı tarihe ikinci kayıt girilirse eskisini güncelle (çift kayıt önleme)
+        const mevcut = personel.kayitlar.findIndex(k => k.tarih === tarih)
+        if (mevcut >= 0) {
+          personel.kayitlar[mevcut].durum = durum
+          personel.kayitlar[mevcut].saat = saat || 0
+          personel.kayitlar[mevcut].aciklama = aciklama || ''
+        } else {
+          personel.kayitlar.push({ tarih, durum, saat: saat || 0, aciklama: aciklama || '' })
+        }
       }
+      personel.markModified('kayitlar')
       await personel.save()
       return res.status(200).json({ mesaj: 'Kayıt başarıyla eklendi!', personel })
     }
