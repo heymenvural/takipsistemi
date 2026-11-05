@@ -30,7 +30,14 @@ export default async function handler(req, res) {
   try {
     await dbConnect()
   } catch (err) {
-    return res.status(500).json({ mesaj: 'Veritabanı bağlantı hatası', hata: String(err) })
+    // Teşhis: şifreyi göstermeden hangi adrese bağlanılmaya çalışıldığını ve sunucu durumlarını döndür
+    const uri = String(process.env.MONGO_URI || '')
+    const host = (uri.split('@')[1] || '').split('/')[0]
+    const kullanici = (uri.split('://')[1] || '').split(':')[0].replace(/^MONGO_URI=/i, '')
+    const sunucular = err?.reason?.servers
+      ? [...err.reason.servers.entries()].map(([h, d]) => ({ h, tip: d.type, hata: d.error ? String(d.error.message || d.error).slice(0, 200) : null }))
+      : null
+    return res.status(500).json({ mesaj: 'Veritabanı bağlantı hatası', hata: String(err), host, kullanici, sunucular })
   }
 
   // vercel.json: /api/personel/:path* → /api/personel?path=...
