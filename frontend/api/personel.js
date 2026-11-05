@@ -6,14 +6,14 @@ const GUNCEL_LISTE = [
   "AYŞE PEHLİVANOĞLU",
   "SONGÜL KOLUKIRIK",
   "MEHMET GÜNDOĞDU",
-  "MEHMET DAĞDELEN",
+  "ÖMER BİNGÖL",
   "ÖZLEM SEZER",
   "CÜNEYT SÜZER",
   "İRFAN GÜVENÇ",
   "ERCAN KÜÇÜKAYLAK",
   "EFEKAN KARTAL",
   "YAŞAR UYAR",
-  "ÖMER BİNGÖL",
+  "MEHMET DAĞDELEN",
   "MEHMET CANKUT",
   "ŞEYMA KARADAĞ",
   "GÜNGÖR SANCAK",
@@ -21,9 +21,16 @@ const GUNCEL_LISTE = [
   "MUSTAFA YÜKSEL",
   "MEHMET DEMİRBAŞ",
   "YUSUF AKTAŞ",
-  "OSMAN DOĞAN",
+  "EMRAH DEMİR",
+  "DİLEK KAÇMAZ",
+  "DAVUT YALÇIN",
   "SERKAN KAYA",
-  "DAVUT YALÇIN"
+  "MESURE GÜLEÇ",
+  "NURSEL DEĞİRMENÇEVİR",
+  "YUSUF GÜVENÇ",
+  "HÜSEYİN ÇENGEL",
+  "ARZU UYAR",
+  "TÜLAY ÖZKARA"
 ]
 
 export default async function handler(req, res) {
@@ -44,12 +51,11 @@ export default async function handler(req, res) {
     // ── /api/personel ──────────────────────────────────────────────
     if (slug.length === 0) {
       if (method === 'GET') {
-        const personeller = await Personel.find()
-        const siralanmis = GUNCEL_LISTE
-          .map(isim => personeller.find(p => p.isim_soyad === isim))
-          .filter(Boolean)
-        const listeyeGirmeyenler = personeller.filter(p => !GUNCEL_LISTE.includes(p.isim_soyad))
-        return res.status(200).json([...siralanmis, ...listeyeGirmeyenler])
+        const tumu = req.query.tumu === '1'
+        const personeller = await Personel.find(tumu ? {} : { aktif: { $ne: false } })
+        const sira = isim => { const i = GUNCEL_LISTE.indexOf(isim); return i === -1 ? 9999 : i }
+        personeller.sort((x, y) => sira(x.isim_soyad) - sira(y.isim_soyad))
+        return res.status(200).json(personeller)
       }
       if (method === 'POST') {
         const { isim_soyad } = req.body || {}
@@ -64,17 +70,18 @@ export default async function handler(req, res) {
 
     // ── /api/personel/senkronize/baslat ────────────────────────────
     if (slug[0] === 'senkronize' && slug[1] === 'baslat') {
-      const mevcutPersoneller = await Personel.find()
-      const silinecekler = mevcutPersoneller.filter(p => !GUNCEL_LISTE.includes(p.isim_soyad))
-      for (const p of silinecekler) await Personel.findByIdAndDelete(p._id)
-      const mevcutIsimler = mevcutPersoneller.map(p => p.isim_soyad)
-      const eklenecekler = GUNCEL_LISTE.filter(isim => !mevcutIsimler.includes(isim))
-      for (const isim of eklenecekler) await new Personel({ isim_soyad: isim, kayitlar: [] }).save()
-      return res.status(200).json({
-        mesaj: 'Liste senkronize edildi!',
-        silinen: silinecekler.map(p => p.isim_soyad),
-        eklenen: eklenecekler,
-      })
+      const mevcut = await Personel.find()
+      const pasif = [], aktif = [], eklenen = []
+      for (const p of mevcut) {
+        const olmali = GUNCEL_LISTE.includes(p.isim_soyad)
+        if (p.aktif !== olmali) { p.aktif = olmali; await p.save(); (olmali ? aktif : pasif).push(p.isim_soyad) }
+      }
+      const isimler = mevcut.map(p => p.isim_soyad)
+      for (const isim of GUNCEL_LISTE.filter(i => !isimler.includes(i))) {
+        await new Personel({ isim_soyad: isim, aktif: true, kayitlar: [] }).save()
+        eklenen.push(isim)
+      }
+      return res.status(200).json({ mesaj: 'Liste senkronize edildi (silme yapılmadı)', pasif, aktif, eklenen })
     }
 
     // ── /api/personel/kurulum/baslat ───────────────────────────────
@@ -97,9 +104,10 @@ export default async function handler(req, res) {
         return res.status(200).json(personel)
       }
       if (method === 'DELETE') {
-        const personel = await Personel.findByIdAndDelete(id)
+        // Kalıcı silme yok: personel pasife alınır, kayıtları arşivde kalır
+        const personel = await Personel.findByIdAndUpdate(id, { aktif: false }, { new: true })
         if (!personel) return res.status(404).json({ mesaj: 'Personel bulunamadı' })
-        return res.status(200).json({ mesaj: 'Personel silindi!' })
+        return res.status(200).json({ mesaj: 'Personel pasife alındı' })
       }
       return res.status(405).json({ mesaj: 'Metot desteklenmiyor' })
     }

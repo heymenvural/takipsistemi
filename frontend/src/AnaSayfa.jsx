@@ -113,7 +113,7 @@ export default function AnaSayfa() {
   }
 
   const personelSil = async (pid, isim) => {
-    if (!window.confirm(`${isim} kişisini silmek istediğinize emin misiniz? Tüm kayıtları da silinecek!`)) return
+    if (!window.confirm(`${isim} kişisini listeden çıkarmak istiyor musunuz? (Eski kayıtları arşivde saklanır)`)) return
     try {
       await axios.delete(`${API}/api/personel/${pid}`)
       veriGetir()

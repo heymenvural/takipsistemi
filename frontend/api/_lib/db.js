@@ -44,6 +44,7 @@ const GunlukKayitSchema = new mongoose.Schema({
 
 const PersonelSchema = new mongoose.Schema({
   isim_soyad: { type: String, required: true, trim: true },
+  aktif: { type: Boolean, default: true },
   kayitlar: [GunlukKayitSchema],
 }, { timestamps: true })
 
